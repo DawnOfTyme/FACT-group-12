@@ -20,7 +20,91 @@ source $HOME/miniconda3/etc/profile.d/conda.sh
 cd $HOME/PEDA
 conda activate peda_env
 
-# Run the all-env experiment script
-bash all_env_uniform.sh
+DIR="experiment_runs/uniform"
+
+# Only run "normal" (baselines only)
+for TYPE in normal
+do
+    for MODEL in bc rvs dt
+    do
+        DIR="experiment_runs/uniform/$MODEL"
+
+        for ENV in MO-Swimmer-v2 MO-Ant-v2 MO-HalfCheetah-v2 MO-Walker2d-v2 MO-Hopper-v3
+        do
+            if [ "$MODEL" = "rvs" ]; then
+                STEP=100000
+                ITER=2
+                CSP=1
+                CAP=0
+                CRP=0
+
+            elif [ "$MODEL" = "dt" ]; then
+                ITER=2
+                CSP=1
+                CAP=1
+                CRP=1
+
+                if [ "$ENV" = "MO-Hopper-v2" ] || [ "$ENV" = "MO-Hopper-v3" ]; then
+                    STEP=200000
+                elif [ "$ENV" = "MO-Swimmer-v2" ]; then
+                    STEP=130000
+                elif [ "$ENV" = "MO-Ant-v2" ]; then
+                    STEP=10000
+                elif [ "$ENV" = "MO-HalfCheetah-v2" ]; then
+                    STEP=40000
+                elif [ "$ENV" = "MO-Walker2d-v2" ]; then
+                    STEP=180000
+                fi
+
+            else  # bc
+                STEP=100000
+                ITER=2
+                CSP=1
+                CAP=0
+                CRP=0
+            fi
+
+            # Naive override (kept for completeness)
+            if [ "$TYPE" = "naive" ]; then
+                CSP=0
+                CAP=0
+                CRP=0
+            fi
+
+            echo "*** $TYPE $MODEL $ENV CSP=$CSP CRP=$CRP CAP=$CAP STEP=$STEP ***"
+
+            # Expert Uniform (seed 1)
+            python experiment.py \
+                --dir $DIR \
+                --env $ENV \
+                --data_mode _formal \
+                --concat_state_pref $CSP \
+                --concat_rtg_pref $CRP \
+                --concat_act_pref $CAP \
+                --mo_rtg True \
+                --seed 1 \
+                --dataset expert_uniform \
+                --model_type $MODEL \
+                --num_steps_per_iter $STEP \
+                --max_iters $ITER
+
+            # Amateur Uniform (seed 4)
+            python experiment.py \
+                --dir $DIR \
+                --env $ENV \
+                --data_mode _formal \
+                --concat_state_pref $CSP \
+                --concat_rtg_pref $CRP \
+                --concat_act_pref $CAP \
+                --mo_rtg True \
+                --seed 4 \
+                --dataset amateur_uniform \
+                --model_type $MODEL \
+                --num_steps_per_iter $STEP \
+                --max_iters $ITER
+
+        done
+    done
+done
 
 echo "Job completed at $(date)"
