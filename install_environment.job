@@ -1,0 +1,35 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu_a100
+#SBATCH --gpus=1
+#SBATCH --job-name=InstallEnvironment
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=9
+#SBATCH --time=02:00:00
+#SBATCH --output=slurm_output_%A.out
+
+module purge
+module load 2023
+module load Mesa/23.1.4-GCCcore-12.3.0
+
+
+if [ ! -d "$HOME/miniconda3" ]; then
+    echo "Installing Miniconda..."
+    cd $HOME
+    wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh
+    bash miniconda.sh -b -p $HOME/miniconda3
+    rm miniconda.sh
+fi
+source $HOME/miniconda3/etc/profile.d/conda.sh
+
+conda config --set channel_priority strict
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
+
+
+export MUJOCO_PY_MUJOCO_PATH=$HOME/.mujoco/mujoco210
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$MUJOCO_PY_MUJOCO_PATH/bin
+export MUJOCO_GL=egl
+
+cd $HOME/FairDICE
+conda env create -f environment.yml

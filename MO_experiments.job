@@ -1,0 +1,25 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu_mig
+#SBATCH --gpus=1
+#SBATCH --job-name=MOExperiments
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=9
+#SBATCH --time=12:00:00
+#SBATCH --output=slurm_output_%A.out
+
+module purge
+module load 2023
+module load Mesa/23.1.4-GCCcore-12.3.0
+
+export MUJOCO_PY_MUJOCO_PATH=$HOME/.mujoco/mujoco210
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$MUJOCO_PY_MUJOCO_PATH/bin:/usr/lib/nvidia
+export MUJOCO_GL=egl
+export CUDA_VISIBLE_DEVICES=0
+
+source $HOME/miniconda3/etc/profile.d/conda.sh
+conda activate fairdice
+
+cd $HOME/FairDICE
+
+bash run_all.sh

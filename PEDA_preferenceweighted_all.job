@@ -1,0 +1,121 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu_h100
+
+#SBATCH --gpus=1
+#SBATCH --job-name=DTPEDA_All_Experiments
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=9
+#SBATCH --time=05:00:00
+#SBATCH --output=slurm_output_%A.out
+
+module purge
+
+export MUJOCO_PY_MUJOCO_PATH=$HOME/.mujoco/mujoco210
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$MUJOCO_PY_MUJOCO_PATH/bin:/usr/lib/nvidia
+export MUJOCO_GL=egl
+export CUDA_VISIBLE_DEVICES=0
+
+source $HOME/miniconda3/etc/profile.d/conda.sh
+cd $HOME/PEDA
+conda activate peda_env
+
+# ---- Configuration ----
+ENVS=(
+  MO-Walker2d-v2
+  MO-Ant-v2
+  MO-HalfCheetah-v2
+  MO-Swimmer-v2
+  MO-Hopper-v3
+)
+
+MODELS=(bc rvs dt)
+DATASETS=(expert_uniform amateur_uniform)
+EVAL_SEEDS=(1 2 3 4 5)
+
+# ---- Loop over experiments ----
+for ENV in "${ENVS[@]}"; do
+  echo "=================================================="
+  echo "ENVIRONMENT: ${ENV}"
+  echo "=================================================="
+
+  for DATASET in "${DATASETS[@]}"; do
+    if [ "$DATASET" = "expert_uniform" ]; then
+      SEED=1
+      LABEL="expert"
+    else
+      SEED=4
+      LABEL="amateur"
+    fi
+
+    # Evaluate models in order: bc, rvs, dt
+    for MODEL in "${MODELS[@]}"; do
+
+      # Default concat flags
+      CSP=1
+      CRP=0
+      CAP=0
+      STEP=100000
+
+      # DT special case
+      if [ "$MODEL" = "dt" ]; then
+        CSP=1
+        CRP=1
+        CAP=1
+        if [ "$ENV" = "MO-Hopper-v2" ] || [ "$ENV" = "MO-Hopper-v3" ]; then
+          STEP=200000
+        elif [ "$ENV" = "MO-Swimmer-v2" ]; then
+          STEP=130000
+        elif [ "$ENV" = "MO-Ant-v2" ]; then
+          STEP=10000
+        elif [ "$ENV" = "MO-HalfCheetah-v2" ]; then
+          STEP=40000
+        elif [ "$ENV" = "MO-Walker2d-v2" ]; then
+          STEP=180000
+        fi
+      fi
+
+      # Set checkpoint path
+      STEP=$(( STEP * 2 ))
+      if [ "$MODEL" = "bc" ]; then
+        CKPT="experiment_runs/uniform/${ENV}/${DATASET}/K=20/mo_rtg=True/rtg_scale=100/norm_rew=False/concat_state_pref=${CSP}/concat_rtg_pref=${CRP}/concat_act_pref=${CAP}/percent=1/batch=64/dim=512/layers=3/obj=-1/use_pref=False/return_loss=False/pref_loss=False/optim=adam/seed=${SEED}/ckpt/step=${STEP}.ckpt"
+      else
+        CKPT="experiment_runs/uniform/${MODEL}/${ENV}/${DATASET}/K=20/mo_rtg=True/rtg_scale=100/norm_rew=False/concat_state_pref=${CSP}/concat_rtg_pref=${CRP}/concat_act_pref=${CAP}/percent=1/batch=64/dim=512/layers=3/obj=-1/use_pref=False/return_loss=False/pref_loss=False/optim=adam/seed=${SEED}/ckpt/step=${STEP}.ckpt"
+      fi
+
+      # Check if checkpoint exists
+      if [ ! -f "$CKPT" ]; then
+        echo "[SKIP] CKPT missing for ${MODEL} | ${ENV} | ${LABEL}"
+        echo "       -> $CKPT"
+        continue
+      fi
+
+      echo "Running evaluation for ${MODEL} | ${ENV} | ${LABEL}"
+      DIR="new_fixed/results_baselines/$MODEL"
+
+      # Loop over evaluation seeds
+      for EVAL_SEED in "${EVAL_SEEDS[@]}"; do
+      # print time
+        echo "[START] $(date '+%Y-%m-%d %H:%M:%S') | ${MODEL} | ${ENV} | ${LABEL} | seed=${EVAL_SEED}"
+
+        python experiment.py \
+          --dir $DIR \
+          --env $ENV \
+          --dataset $DATASET \
+          --data_mode _formal \
+          --model_type $MODEL \
+          --concat_state_pref $CSP \
+          --concat_rtg_pref $CRP \
+          --concat_act_pref $CAP \
+          --mo_rtg True \
+          --eval_only True \
+          --ckpt $CKPT \
+          --num_eval_episodes 10 \
+          --granularity 30 \
+          --seed $EVAL_SEED \
+          --device cuda
+      done
+
+    done
+  done
+done
