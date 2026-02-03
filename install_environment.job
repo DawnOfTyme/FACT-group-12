@@ -32,4 +32,19 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$MUJOCO_PY_MUJOCO_PATH/bin
 export MUJOCO_GL=egl
 
 cd $HOME/FairDICE
+
+# Create main environment from environment.yml (continuous MuJoCo environments)
 conda env create -f environment.yml
+
+# Activate the environment
+conda activate fairdice
+
+# Install additional dependencies for discrete environments
+echo "Installing discrete environment dependencies..."
+pip install gymnasium
+
+# Install the FairDICE package in development mode (makes environments/ importable)
+pip install -e .
+
+echo "Environment setup complete!"
+echo "To use: conda activate fairdice"
