@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Read(//c/Users/Alexis/Downloads/DiscreteFairdice/**)",
+      "Bash(grep:*)"
+    ]
+  }
+}
